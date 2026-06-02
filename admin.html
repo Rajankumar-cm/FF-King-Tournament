@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin PRO</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron&family=Poppins&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body{background:#000;color:#fff;font-family:Poppins;}
+.card{background:#111;padding:15px;margin:10px;border-radius:10px;box-shadow:0 0 20px #00f;}
+button{background:linear-gradient(45deg,#00f,#a0f);color:#fff;border:none;padding:10px;}
+input{width:100%;padding:8px;margin:5px;}
+</style>
+</head>
+
+<body>
+
+<h1>👑 Admin PRO</h1>
+
+<div id="login">
+<input id="u" placeholder="Username">
+<input id="p" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+
+<div id="panel" style="display:none;">
+
+<div class="card">
+<h3>Create Tournament</h3>
+<input id="t">
+<input id="d" type="date">
+<input id="tm" type="time">
+<input id="m">
+<input id="md">
+<input id="fee">
+<input type="file" id="img">
+<button onclick="create()">Create</button>
+</div>
+
+<div id="list"></div>
+
+</div>
+
+<script>
+const supabase = window.supabase.createClient(
+"https://xkowovqimwfenzcazyjf.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+);
+
+async function login(){
+let {data}=await supabase.from("admins")
+.select("*").eq("username",u.value).eq("password",p.value);
+if(data.length){login.style.display="none";panel.style.display="block";load();}
+}
+
+async function create(){
+let file=img.files[0];
+let fileName=Date.now()+file.name;
+
+await supabase.storage.from("tournament-images")
+.upload(fileName,file);
+
+let url = supabase.storage.from("tournament-images").getPublicUrl(fileName).data.publicUrl;
+
+await supabase.from("tournaments").insert([{
+title:t.value,date:d.value,time:tm.value,map:m.value,mode:md.value,
+entry_fee:fee.value,status:"Upcoming",image_url:url
+}]);
+
+alert("Created");
+load();
+}
+
+async function load(){
+let {data}=await supabase.from("tournaments").select("*");
+list.innerHTML="";
+data.forEach(t=>{
+list.innerHTML+=`
+<div class="card">
+<h3>${t.title}</h3>
+<img src="${t.image_url}" width="100%">
+<p>${t.status}</p>
+
+<input placeholder="Room ID" onchange="updateRoom('${t.id}',this.value,'id')">
+<input placeholder="Password" onchange="updateRoom('${t.id}',this.value,'pass')">
+
+<button onclick="setLive('${t.id}')">Live</button>
+<button onclick="complete('${t.id}')">Complete</button>
+<button onclick="del('${t.id}')">Delete</button>
+</div>`;
+});
+}
+
+async function updateRoom(id,val,type){
+if(type=="id"){
+await supabase.from("tournaments").update({room_id:val}).eq("id",id);
+}else{
+await supabase.from("tournaments").update({room_password:val}).eq("id",id);
+}
+}
+
+async function setLive(id){
+await supabase.from("tournaments").update({status:"Live"}).eq("id",id);
+load();
+}
+
+async function complete(id){
+await supabase.from("tournaments").update({status:"Completed"}).eq("id",id);
+}
+
+async function del(id){
+await supabase.from("tournaments").delete().eq("id",id);
+load();
+}
+</script>
+
+</body>
+</html>
