@@ -1,95 +1,130 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Admin PRO</title>
+<title>Admin - FF King Tournament</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Orbitron&family=Poppins&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 body{background:#000;color:#fff;font-family:Poppins;}
-.card{background:#111;padding:15px;margin:10px;border-radius:10px;box-shadow:0 0 20px #00f;}
-button{background:linear-gradient(45deg,#00f,#a0f);color:#fff;border:none;padding:10px;}
-input{width:100%;padding:8px;margin:5px;}
+h1{font-family:Orbitron;text-align:center;color:#0ff;}
+.card{background:#111;padding:15px;margin:10px;border-radius:10px;box-shadow:0 0 15px #00f;}
+input,button{width:100%;padding:10px;margin:5px 0;border:none;border-radius:5px;}
+button{background:linear-gradient(45deg,#00f,#a0f);color:#fff;}
+img{width:100%;border-radius:10px;}
 </style>
 </head>
 
 <body>
 
-<h1>👑 Admin PRO</h1>
+<h1>👑 Admin Panel</h1>
 
-<div id="login">
+<div id="loginBox" class="card">
 <input id="u" placeholder="Username">
 <input id="p" type="password" placeholder="Password">
 <button onclick="login()">Login</button>
 </div>
-  <div class="card">
-<h3>Payment Settings</h3>
+
+<div id="panel" style="display:none;">
+
+<!-- PAYMENT SETTINGS -->
+<div class="card">
+<h3>💰 Payment Settings</h3>
 <input id="upi" placeholder="UPI ID">
 <input type="file" id="qr">
 <button onclick="savePaymentSettings()">Save</button>
 </div>
-  <div class="card">
-<h3>Pending Payments</h3>
-<div id="payments"></div>
-</div>
 
-<div id="panel" style="display:none;">
-
+<!-- CREATE TOURNAMENT -->
 <div class="card">
-<h3>Create Tournament</h3>
-<input id="t">
+<h3>🏆 Create Tournament</h3>
+<input id="t" placeholder="Title">
 <input id="d" type="date">
 <input id="tm" type="time">
-<input id="m">
-<input id="md">
-<input id="fee">
+<input id="m" placeholder="Map">
+<input id="md" placeholder="Mode">
+<input id="fee" placeholder="Entry Fee">
 <input type="file" id="img">
 <button onclick="create()">Create</button>
 </div>
 
+<!-- TOURNAMENT LIST -->
 <div id="list"></div>
+
+<!-- PAYMENTS -->
+<div class="card">
+<h3>💳 Pending Payments</h3>
+<div id="payments"></div>
+</div>
 
 </div>
 
 <script>
 const supabase = window.supabase.createClient(
 "https://xkowovqimwfenzcazyjf.supabase.co",
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhrb3dvdnFpbXdmZW56Y2F6eWpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTQ1OTUsImV4cCI6MjA5NTk5MDU5NX0.g01xMsRRVia1E27iMxOPgrs_IMRdwTEW_wF-Q_y1hL4"
 );
 
 async function login(){
 let {data}=await supabase.from("admins")
 .select("*").eq("username",u.value).eq("password",p.value);
-if(data.length){login.style.display="none";panel.style.display="block";load();}
+
+if(data.length){
+loginBox.style.display="none";
+panel.style.display="block";
+load();
+loadPayments();
+}
 }
 
+// SAVE UPI + QR
+async function savePaymentSettings(){
+let file=qr.files[0];
+let name="qr"+Date.now();
+
+await supabase.storage.from("tournament-images").upload(name,file);
+
+let url=supabase.storage.from("tournament-images")
+.getPublicUrl(name).data.publicUrl;
+
+await supabase.from("settings")
+.update({upi_id:upi.value, qr_image:url})
+.neq("id","");
+
+alert("Saved");
+}
+
+// CREATE TOURNAMENT
 async function create(){
 let file=img.files[0];
-let fileName=Date.now()+file.name;
+let name="img"+Date.now();
 
-await supabase.storage.from("tournament-images")
-.upload(fileName,file);
+await supabase.storage.from("tournament-images").upload(name,file);
 
-let url = supabase.storage.from("tournament-images").getPublicUrl(fileName).data.publicUrl;
+let url=supabase.storage.from("tournament-images")
+.getPublicUrl(name).data.publicUrl;
 
 await supabase.from("tournaments").insert([{
-title:t.value,date:d.value,time:tm.value,map:m.value,mode:md.value,
-entry_fee:fee.value,status:"Upcoming",image_url:url
+title:t.value,date:d.value,time:tm.value,map:m.value,
+mode:md.value,entry_fee:fee.value,status:"Upcoming",
+image_url:url
 }]);
 
-alert("Created");
+alert("Tournament Created");
 load();
 }
 
+// LOAD TOURNAMENTS
 async function load(){
 let {data}=await supabase.from("tournaments").select("*");
+
 list.innerHTML="";
 data.forEach(t=>{
 list.innerHTML+=`
 <div class="card">
 <h3>${t.title}</h3>
-<img src="${t.image_url}" width="100%">
+<img src="${t.image_url}">
 <p>${t.status}</p>
 
 <input placeholder="Room ID" onchange="updateRoom('${t.id}',this.value,'id')">
@@ -102,49 +137,36 @@ list.innerHTML+=`
 });
 }
 
+// ROOM UPDATE
 async function updateRoom(id,val,type){
-if(type=="id"){
+if(type==="id"){
 await supabase.from("tournaments").update({room_id:val}).eq("id",id);
 }else{
 await supabase.from("tournaments").update({room_password:val}).eq("id",id);
 }
 }
 
+// STATUS
 async function setLive(id){
 await supabase.from("tournaments").update({status:"Live"}).eq("id",id);
 load();
 }
-
 async function complete(id){
 await supabase.from("tournaments").update({status:"Completed"}).eq("id",id);
+load();
 }
 
+// DELETE
 async function del(id){
 await supabase.from("tournaments").delete().eq("id",id);
 load();
 }
-  async function savePaymentSettings(){
-let file=qr.files[0];
-let fileName="qr"+Date.now();
 
-await supabase.storage.from("tournament-images").upload(fileName,file);
-
-let url=supabase.storage.from("tournament-images")
-.getPublicUrl(fileName).data.publicUrl;
-
-await supabase.from("settings")
-.update({upi_id:upi.value, qr_image:url})
-.neq("id","");
-
-alert("Saved");
-}
-
+// PAYMENTS
 async function loadPayments(){
-let {data}=await supabase.from("payments")
-.select("*").eq("status","pending");
+let {data}=await supabase.from("payments").select("*").eq("status","pending");
 
 payments.innerHTML="";
-
 data.forEach(p=>{
 payments.innerHTML+=`
 <div class="card">
@@ -156,20 +178,22 @@ payments.innerHTML+=`
 });
 }
 
+// APPROVE
 async function approve(id,user,amount){
-await supabase.from("users")
-.update({balance: supabase.rpc('increment_balance',{uid:user,amt:parseInt(amount)})});
+let {data:userData}=await supabase.from("users").select("balance").eq("id",user);
+
+let newBalance=(userData[0].balance||0)+parseInt(amount);
+
+await supabase.from("users").update({balance:newBalance}).eq("id",user);
 
 await supabase.from("payments").delete().eq("id",id);
 
 loadPayments();
 }
 
+// REJECT
 async function reject(id){
-await supabase.from("payments")
-.update({status:"failed"})
-.eq("id",id);
-
+await supabase.from("payments").update({status:"failed"}).eq("id",id);
 loadPayments();
 }
 </script>
