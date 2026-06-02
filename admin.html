@@ -23,6 +23,16 @@ input{width:100%;padding:8px;margin:5px;}
 <input id="p" type="password" placeholder="Password">
 <button onclick="login()">Login</button>
 </div>
+  <div class="card">
+<h3>Payment Settings</h3>
+<input id="upi" placeholder="UPI ID">
+<input type="file" id="qr">
+<button onclick="savePaymentSettings()">Save</button>
+</div>
+  <div class="card">
+<h3>Pending Payments</h3>
+<div id="payments"></div>
+</div>
 
 <div id="panel" style="display:none;">
 
@@ -112,6 +122,55 @@ await supabase.from("tournaments").update({status:"Completed"}).eq("id",id);
 async function del(id){
 await supabase.from("tournaments").delete().eq("id",id);
 load();
+}
+  async function savePaymentSettings(){
+let file=qr.files[0];
+let fileName="qr"+Date.now();
+
+await supabase.storage.from("tournament-images").upload(fileName,file);
+
+let url=supabase.storage.from("tournament-images")
+.getPublicUrl(fileName).data.publicUrl;
+
+await supabase.from("settings")
+.update({upi_id:upi.value, qr_image:url})
+.neq("id","");
+
+alert("Saved");
+}
+
+async function loadPayments(){
+let {data}=await supabase.from("payments")
+.select("*").eq("status","pending");
+
+payments.innerHTML="";
+
+data.forEach(p=>{
+payments.innerHTML+=`
+<div class="card">
+<p>Amount: ${p.amount}</p>
+<p>UTR: ${p.utr}</p>
+<button onclick="approve('${p.id}','${p.user_id}','${p.amount}')">Approve</button>
+<button onclick="reject('${p.id}')">Reject</button>
+</div>`;
+});
+}
+
+async function approve(id,user,amount){
+await supabase.from("users")
+.update({balance: supabase.rpc('increment_balance',{uid:user,amt:parseInt(amount)})});
+
+await supabase.from("payments").delete().eq("id",id);
+
+loadPayments();
+}
+
+async function reject(id){
+await supabase.from("payments")
+.update({status:"failed"})
+.eq("id",id);
+
+loadPayments();
 }
 </script>
 
