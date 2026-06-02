@@ -58,6 +58,12 @@ img{width:100%;border-radius:10px;}
 <div id="payments"></div>
 </div>
 
+<!-- WITHDRAWALS -->
+<div class="card">
+<h3>💸 Withdrawal Requests</h3>
+<div id="withdrawals"></div>
+</div>
+
 </div>
 
 <script>
@@ -66,6 +72,7 @@ const supabase = window.supabase.createClient(
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhrb3dvdnFpbXdmZW56Y2F6eWpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTQ1OTUsImV4cCI6MjA5NTk5MDU5NX0.g01xMsRRVia1E27iMxOPgrs_IMRdwTEW_wF-Q_y1hL4"
 );
 
+// LOGIN
 async function login(){
 let {data}=await supabase.from("admins")
 .select("*").eq("username",u.value).eq("password",p.value);
@@ -75,6 +82,7 @@ loginBox.style.display="none";
 panel.style.display="block";
 load();
 loadPayments();
+loadWithdrawals();
 }
 }
 
@@ -178,7 +186,7 @@ payments.innerHTML+=`
 });
 }
 
-// APPROVE
+// APPROVE PAYMENT
 async function approve(id,user,amount){
 let {data:userData}=await supabase.from("users").select("balance").eq("id",user);
 
@@ -191,10 +199,40 @@ await supabase.from("payments").delete().eq("id",id);
 loadPayments();
 }
 
-// REJECT
+// REJECT PAYMENT
 async function reject(id){
 await supabase.from("payments").update({status:"failed"}).eq("id",id);
 loadPayments();
+}
+
+// WITHDRAWALS
+async function loadWithdrawals(){
+let {data}=await supabase.from("withdrawals").select("*").eq("status","pending");
+
+withdrawals.innerHTML="";
+data.forEach(w=>{
+withdrawals.innerHTML+=`
+<div class="card">
+<p>Amount: ${w.amount}</p>
+<p>UPI: ${w.upi_id}</p>
+
+<button onclick="approveW('${w.id}')">Approve</button>
+<button onclick="rejectW('${w.id}')">Reject</button>
+</div>`;
+});
+}
+
+// APPROVE WITHDRAW
+async function approveW(id){
+await supabase.from("withdrawals").delete().eq("id",id);
+alert("Send payment manually 💸");
+loadWithdrawals();
+}
+
+// REJECT WITHDRAW
+async function rejectW(id){
+await supabase.from("withdrawals").update({status:"failed"}).eq("id",id);
+loadWithdrawals();
 }
 </script>
 
