@@ -7,54 +7,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{
-margin:0;
-background:#000;
-color:#fff;
-font-family:Poppins;
-}
-
-h1{
-font-family:Orbitron;
-text-align:center;
-color:#0ff;
-text-shadow:0 0 10px #0ff;
-}
-
-.card{
-background:#111;
-margin:10px;
-padding:15px;
-border-radius:10px;
-box-shadow:0 0 15px #00f;
-}
-
-button{
-background:linear-gradient(45deg,#00f,#a0f);
-border:none;
-padding:10px;
-color:#fff;
-border-radius:8px;
-margin-top:5px;
-}
-
-input{
-width:100%;
-padding:8px;
-margin:5px 0;
-border:none;
-border-radius:5px;
-}
-
-.badge{
-padding:5px 10px;
-border-radius:5px;
-font-size:12px;
-}
-
-.live{background:red;}
-.upcoming{background:orange;}
-.completed{background:green;}
+body{margin:0;background:#000;color:#fff;font-family:Poppins;}
+h1{font-family:Orbitron;text-align:center;color:#0ff;text-shadow:0 0 10px #0ff;}
+.card{background:#111;margin:10px;padding:15px;border-radius:10px;box-shadow:0 0 15px #00f;}
+button{background:linear-gradient(45deg,#00f,#a0f);border:none;padding:10px;color:#fff;border-radius:8px;}
+input{width:100%;padding:8px;margin:5px 0;border:none;border-radius:5px;}
+.badge{padding:5px 10px;border-radius:5px;}
+.live{background:red;} .upcoming{background:orange;} .completed{background:green;}
 </style>
 </head>
 
@@ -62,40 +21,45 @@ font-size:12px;
 
 <h1>🔥 FF King Tournament</h1>
 
-<!-- REGISTER -->
 <div id="register" class="card">
-<h2>Register</h2>
+<h2>Login / Register</h2>
 <input id="name" placeholder="Name">
 <input id="uid" placeholder="Game UID">
-<button onclick="registerUser()">Start Playing</button>
+<button onclick="registerUser()">Start</button>
 </div>
 
-<!-- APP -->
 <div id="app" style="display:none;">
 
-<!-- WALLET -->
 <div class="card">
 <h3>💰 Wallet</h3>
 <p>Balance: ₹<span id="balance">0</span></p>
 
-<img id="qrImg" width="100%">
+<img id="qrImg">
 <p id="upiText"></p>
 
 <input id="amount" placeholder="Deposit Amount">
-<input id="utr" placeholder="UTR Number">
-<button onclick="deposit()">Submit Deposit</button>
+<input id="utr" placeholder="UTR">
+<button onclick="deposit()">Deposit</button>
 
 <hr>
 
 <h3>💸 Withdraw</h3>
-<input id="withdrawAmount" placeholder="Withdraw Amount">
-<input id="withdrawUpi" placeholder="Your UPI ID">
-<button onclick="withdraw()">Request Withdraw</button>
-
+<input id="withdrawAmount" placeholder="Amount">
+<input id="withdrawUpi" placeholder="UPI">
+<button onclick="withdraw()">Withdraw</button>
 </div>
 
-<!-- TOURNAMENT -->
-<h2 style="padding-left:10px;">🏆 Tournaments</h2>
+<div class="card">
+<h3>📊 Transactions</h3>
+<div id="history"></div>
+</div>
+
+<div class="card">
+<h3>💸 Withdraw History</h3>
+<div id="withdrawHistory"></div>
+</div>
+
+<h2>🏆 Tournaments</h2>
 <div id="tournaments"></div>
 
 </div>
@@ -106,159 +70,136 @@ const supabase = window.supabase.createClient(
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhrb3dvdnFpbXdmZW56Y2F6eWpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTQ1OTUsImV4cCI6MjA5NTk5MDU5NX0.g01xMsRRVia1E27iMxOPgrs_IMRdwTEW_wF-Q_y1hL4"
 );
 
-let currentUser = null;
+let currentUser=null;
 
-// REGISTER
 async function registerUser(){
-let {data} = await supabase.from("users").insert([{
-name:name.value,
-game_uid:uid.value
-}]).select();
+let {data}=await supabase.from("users").select("*").eq("game_uid",uid.value);
 
-currentUser = data[0].id;
+if(data.length){
+currentUser=data[0].id;
+}else{
+let {data:newUser}=await supabase.from("users").insert([{name:name.value,game_uid:uid.value}]).select();
+currentUser=newUser[0].id;
+}
+
+localStorage.setItem("user",currentUser);
 
 register.style.display="none";
 app.style.display="block";
 
+init();
+}
+
+if(localStorage.getItem("user")){
+currentUser=localStorage.getItem("user");
+register.style.display="none";
+app.style.display="block";
+init();
+}
+
+function init(){
 loadBalance();
 loadSettings();
 loadTournaments();
+loadHistory();
+loadWithdrawHistory();
 listenRealtime();
 }
 
-// LOAD BALANCE
 async function loadBalance(){
-let {data} = await supabase.from("users")
-.select("balance").eq("id",currentUser);
-
-balance.innerText = data[0].balance || 0;
+let {data}=await supabase.from("users").select("balance").eq("id",currentUser);
+balance.innerText=data[0].balance||0;
 }
 
-// LOAD QR + UPI
 async function loadSettings(){
-let {data} = await supabase.from("settings").select("*").limit(1);
-
-qrImg.src = data[0].qr_image;
-upiText.innerText = "UPI: " + data[0].upi_id;
+let {data}=await supabase.from("settings").select("*").limit(1);
+qrImg.src=data[0].qr_image;
+upiText.innerText="UPI: "+data[0].upi_id;
 }
 
-// DEPOSIT
 async function deposit(){
+if(!amount.value||!utr.value){alert("Fill all fields");return;}
+
+let {data:check}=await supabase.from("payments").select("*").eq("utr",utr.value);
+if(check.length){alert("UTR used");return;}
+
 await supabase.from("payments").insert([{
-user_id:currentUser,
-amount:amount.value,
-utr:utr.value
+user_id:currentUser,amount:amount.value,utr:utr.value
 }]);
 
-alert("Deposit submitted 🔥 Wait for admin approval");
+alert("Submitted");
 }
 
-// WITHDRAW
 async function withdraw(){
+let amt=parseInt(withdrawAmount.value);
+let {data}=await supabase.from("users").select("balance").eq("id",currentUser);
+let bal=data[0].balance||0;
 
-let amountVal = parseInt(withdrawAmount.value);
+if(amt>bal||amt<50){alert("Invalid amount");return;}
 
-let {data} = await supabase.from("users")
-.select("balance").eq("id",currentUser);
+await supabase.from("users").update({balance:bal-amt}).eq("id",currentUser);
 
-let bal = data[0].balance || 0;
-
-if(amountVal > bal){
-alert("Not enough balance ❌");
-return;
-}
-
-// deduct first
-await supabase.from("users")
-.update({balance: bal - amountVal})
-.eq("id",currentUser);
-
-// request
 await supabase.from("withdrawals").insert([{
-user_id:currentUser,
-amount:amountVal,
-upi_id:withdrawUpi.value
+user_id:currentUser,amount:amt,upi_id:withdrawUpi.value
 }]);
 
-alert("Withdraw request sent 💸");
-
+alert("Requested");
 loadBalance();
 }
 
-// LOAD TOURNAMENT
-async function loadTournaments(){
-let {data} = await supabase.from("tournaments").select("*");
+async function loadHistory(){
+let {data}=await supabase.from("payments").select("*").eq("user_id",currentUser);
+history.innerHTML="";
+data.forEach(t=>{
+history.innerHTML+=`<div class="card">₹${t.amount} | ${t.status}</div>`;
+});
+}
 
+async function loadWithdrawHistory(){
+let {data}=await supabase.from("withdrawals").select("*").eq("user_id",currentUser);
+withdrawHistory.innerHTML="";
+data.forEach(w=>{
+withdrawHistory.innerHTML+=`<div class="card">₹${w.amount} | ${w.status}</div>`;
+});
+}
+
+async function loadTournaments(){
+let {data}=await supabase.from("tournaments").select("*");
 tournaments.innerHTML="";
 
 for(let t of data){
+let fee=parseInt(t.entry_fee||0);
 
-let {data:joinCheck} = await supabase.from("participants")
-.select("*")
-.eq("user_id",currentUser)
-.eq("tournament_id",t.id);
-
-let joined = joinCheck.length>0;
-let fee = parseInt(t.entry_fee || 0);
-
-tournaments.innerHTML += `
+tournaments.innerHTML+=`
 <div class="card">
-
 <h3>${t.title}</h3>
+<img src="${t.image_url}">
+<p>${t.status}</p>
+<p>Fee: ₹${fee}</p>
 
-<img src="${t.image_url}" style="width:100%;border-radius:10px">
+${t.status==="Live"?`Room: ${t.room_id} | ${t.room_password}`:""}
 
-<p>${t.date} | ${t.time}</p>
-
-<p class="badge ${t.status.toLowerCase()}">${t.status}</p>
-
-<p>Entry Fee: ₹${fee}</p>
-
-${t.status==="Live" ? `
-<p>🔑 Room ID: ${t.room_id || "Wait..."}</p>
-<p>🔐 Password: ${t.room_password || "Wait..."}</p>
-` : ""}
-
-<button onclick="join('${t.id}',${fee})" ${joined ? "disabled" : ""}>
-${joined ? "Joined ✅" : "Join Match"}
-</button>
-
-</div>
-`;
+<button onclick="join('${t.id}',${fee})">Join</button>
+</div>`;
 }
 }
 
-// JOIN MATCH
 async function join(id,fee){
+let {data}=await supabase.from("users").select("balance").eq("id",currentUser);
+let bal=data[0].balance||0;
 
-let {data} = await supabase.from("users")
-.select("balance").eq("id",currentUser);
+if(bal<fee){alert("Low balance");return;}
 
-let bal = data[0].balance || 0;
+await supabase.from("users").update({balance:bal-fee}).eq("id",currentUser);
 
-if(bal < fee){
-alert("Not enough balance ❌");
-return;
-}
-
-// deduct
-await supabase.from("users")
-.update({balance: bal - fee})
-.eq("id",currentUser);
-
-// join
 await supabase.from("participants").insert([{
-user_id:currentUser,
-tournament_id:id
+user_id:currentUser,tournament_id:id
 }]);
 
-alert("Joined Successfully 🔥");
-
+alert("Joined");
 loadBalance();
-loadTournaments();
 }
 
-// REALTIME
 function listenRealtime(){
 supabase.channel('live')
 .on('postgres_changes',{event:'*',schema:'public',table:'tournaments'},()=>{
