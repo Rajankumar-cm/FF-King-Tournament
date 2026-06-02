@@ -28,7 +28,6 @@ img{width:100%;border-radius:10px;}
 
 <div id="panel" style="display:none;">
 
-<!-- PAYMENT SETTINGS -->
 <div class="card">
 <h3>💰 Payment Settings</h3>
 <input id="upi" placeholder="UPI ID">
@@ -36,7 +35,6 @@ img{width:100%;border-radius:10px;}
 <button onclick="savePaymentSettings()">Save</button>
 </div>
 
-<!-- CREATE TOURNAMENT -->
 <div class="card">
 <h3>🏆 Create Tournament</h3>
 <input id="t" placeholder="Title">
@@ -49,16 +47,13 @@ img{width:100%;border-radius:10px;}
 <button onclick="create()">Create</button>
 </div>
 
-<!-- TOURNAMENT LIST -->
 <div id="list"></div>
 
-<!-- PAYMENTS -->
 <div class="card">
 <h3>💳 Pending Payments</h3>
 <div id="payments"></div>
 </div>
 
-<!-- WITHDRAWALS -->
 <div class="card">
 <h3>💸 Withdrawal Requests</h3>
 <div id="withdrawals"></div>
@@ -72,46 +67,38 @@ const supabase = window.supabase.createClient(
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhrb3dvdnFpbXdmZW56Y2F6eWpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTQ1OTUsImV4cCI6MjA5NTk5MDU5NX0.g01xMsRRVia1E27iMxOPgrs_IMRdwTEW_wF-Q_y1hL4"
 );
 
-// LOGIN
 async function login(){
 let {data}=await supabase.from("admins")
 .select("*").eq("username",u.value).eq("password",p.value);
 
 if(data.length){
+localStorage.setItem("admin","true");
 loginBox.style.display="none";
 panel.style.display="block";
-load();
-loadPayments();
-loadWithdrawals();
-}
+load();loadPayments();loadWithdrawals();
+}else alert("Invalid login ❌");
 }
 
-// SAVE UPI + QR
+if(localStorage.getItem("admin")==="true"){
+loginBox.style.display="none";
+panel.style.display="block";
+load();loadPayments();loadWithdrawals();
+}
+
 async function savePaymentSettings(){
 let file=qr.files[0];
 let name="qr"+Date.now();
-
 await supabase.storage.from("tournament-images").upload(name,file);
-
-let url=supabase.storage.from("tournament-images")
-.getPublicUrl(name).data.publicUrl;
-
-await supabase.from("settings")
-.update({upi_id:upi.value, qr_image:url})
-.neq("id","");
-
+let url=supabase.storage.from("tournament-images").getPublicUrl(name).data.publicUrl;
+await supabase.from("settings").update({upi_id:upi.value, qr_image:url}).neq("id","");
 alert("Saved");
 }
 
-// CREATE TOURNAMENT
 async function create(){
 let file=img.files[0];
 let name="img"+Date.now();
-
 await supabase.storage.from("tournament-images").upload(name,file);
-
-let url=supabase.storage.from("tournament-images")
-.getPublicUrl(name).data.publicUrl;
+let url=supabase.storage.from("tournament-images").getPublicUrl(name).data.publicUrl;
 
 await supabase.from("tournaments").insert([{
 title:t.value,date:d.value,time:tm.value,map:m.value,
@@ -119,14 +106,12 @@ mode:md.value,entry_fee:fee.value,status:"Upcoming",
 image_url:url
 }]);
 
-alert("Tournament Created");
+alert("Created");
 load();
 }
 
-// LOAD TOURNAMENTS
 async function load(){
 let {data}=await supabase.from("tournaments").select("*");
-
 list.innerHTML="";
 data.forEach(t=>{
 list.innerHTML+=`
@@ -145,7 +130,6 @@ list.innerHTML+=`
 });
 }
 
-// ROOM UPDATE
 async function updateRoom(id,val,type){
 if(type==="id"){
 await supabase.from("tournaments").update({room_id:val}).eq("id",id);
@@ -154,7 +138,6 @@ await supabase.from("tournaments").update({room_password:val}).eq("id",id);
 }
 }
 
-// STATUS
 async function setLive(id){
 await supabase.from("tournaments").update({status:"Live"}).eq("id",id);
 load();
@@ -163,22 +146,18 @@ async function complete(id){
 await supabase.from("tournaments").update({status:"Completed"}).eq("id",id);
 load();
 }
-
-// DELETE
 async function del(id){
 await supabase.from("tournaments").delete().eq("id",id);
 load();
 }
 
-// PAYMENTS
 async function loadPayments(){
 let {data}=await supabase.from("payments").select("*").eq("status","pending");
-
 payments.innerHTML="";
 data.forEach(p=>{
 payments.innerHTML+=`
 <div class="card">
-<p>Amount: ${p.amount}</p>
+<p>Amount: ₹${p.amount}</p>
 <p>UTR: ${p.utr}</p>
 <button onclick="approve('${p.id}','${p.user_id}','${p.amount}')">Approve</button>
 <button onclick="reject('${p.id}')">Reject</button>
@@ -186,50 +165,39 @@ payments.innerHTML+=`
 });
 }
 
-// APPROVE PAYMENT
 async function approve(id,user,amount){
-let {data:userData}=await supabase.from("users").select("balance").eq("id",user);
-
-let newBalance=(userData[0].balance||0)+parseInt(amount);
-
-await supabase.from("users").update({balance:newBalance}).eq("id",user);
-
+let {data}=await supabase.from("users").select("balance").eq("id",user);
+let newBal=(data[0].balance||0)+parseInt(amount);
+await supabase.from("users").update({balance:newBal}).eq("id",user);
 await supabase.from("payments").delete().eq("id",id);
-
 loadPayments();
 }
 
-// REJECT PAYMENT
 async function reject(id){
 await supabase.from("payments").update({status:"failed"}).eq("id",id);
 loadPayments();
 }
 
-// WITHDRAWALS
 async function loadWithdrawals(){
 let {data}=await supabase.from("withdrawals").select("*").eq("status","pending");
-
 withdrawals.innerHTML="";
 data.forEach(w=>{
 withdrawals.innerHTML+=`
 <div class="card">
-<p>Amount: ${w.amount}</p>
+<p>Amount: ₹${w.amount}</p>
 <p>UPI: ${w.upi_id}</p>
-
 <button onclick="approveW('${w.id}')">Approve</button>
 <button onclick="rejectW('${w.id}')">Reject</button>
 </div>`;
 });
 }
 
-// APPROVE WITHDRAW
 async function approveW(id){
 await supabase.from("withdrawals").delete().eq("id",id);
 alert("Send payment manually 💸");
 loadWithdrawals();
 }
 
-// REJECT WITHDRAW
 async function rejectW(id){
 await supabase.from("withdrawals").update({status:"failed"}).eq("id",id);
 loadWithdrawals();
