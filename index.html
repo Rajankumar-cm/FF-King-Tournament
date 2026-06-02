@@ -81,10 +81,17 @@ font-size:12px;
 <img id="qrImg" width="100%">
 <p id="upiText"></p>
 
-<input id="amount" placeholder="Enter Amount">
-<input id="utr" placeholder="Enter UTR Number">
+<input id="amount" placeholder="Deposit Amount">
+<input id="utr" placeholder="UTR Number">
+<button onclick="deposit()">Submit Deposit</button>
 
-<button onclick="deposit()">Submit Payment</button>
+<hr>
+
+<h3>💸 Withdraw</h3>
+<input id="withdrawAmount" placeholder="Withdraw Amount">
+<input id="withdrawUpi" placeholder="Your UPI ID">
+<button onclick="withdraw()">Request Withdraw</button>
+
 </div>
 
 <!-- TOURNAMENT -->
@@ -119,7 +126,7 @@ loadTournaments();
 listenRealtime();
 }
 
-// LOAD WALLET
+// LOAD BALANCE
 async function loadBalance(){
 let {data} = await supabase.from("users")
 .select("balance").eq("id",currentUser);
@@ -143,7 +150,39 @@ amount:amount.value,
 utr:utr.value
 }]);
 
-alert("Payment Submitted 🔥 Wait for approval");
+alert("Deposit submitted 🔥 Wait for admin approval");
+}
+
+// WITHDRAW
+async function withdraw(){
+
+let amountVal = parseInt(withdrawAmount.value);
+
+let {data} = await supabase.from("users")
+.select("balance").eq("id",currentUser);
+
+let bal = data[0].balance || 0;
+
+if(amountVal > bal){
+alert("Not enough balance ❌");
+return;
+}
+
+// deduct first
+await supabase.from("users")
+.update({balance: bal - amountVal})
+.eq("id",currentUser);
+
+// request
+await supabase.from("withdrawals").insert([{
+user_id:currentUser,
+amount:amountVal,
+upi_id:withdrawUpi.value
+}]);
+
+alert("Withdraw request sent 💸");
+
+loadBalance();
 }
 
 // LOAD TOURNAMENT
@@ -189,7 +228,7 @@ ${joined ? "Joined ✅" : "Join Match"}
 }
 }
 
-// JOIN MATCH (WITH BALANCE CHECK)
+// JOIN MATCH
 async function join(id,fee){
 
 let {data} = await supabase.from("users")
@@ -202,7 +241,7 @@ alert("Not enough balance ❌");
 return;
 }
 
-// deduct balance
+// deduct
 await supabase.from("users")
 .update({balance: bal - fee})
 .eq("id",currentUser);
